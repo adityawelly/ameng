@@ -255,10 +255,11 @@ export default function PetaAnimasi() {
 		  touch-action: none;
 		}
 		.panggung {
+		  --tinggi-dasar: max(115vh, calc(100vw * 0.545455));
 		  position: relative;
 		  flex-shrink: 0;
-		  width: max(100vw, calc(100vh * 1.83333));
-		  height: max(100vh, calc(100vw * 0.545455));
+		  width: calc(var(--tinggi-dasar) * 1.83333);
+		  height: var(--tinggi-dasar);
 		  transform: translateY(-15vh);
 		}
 		.gambar {
