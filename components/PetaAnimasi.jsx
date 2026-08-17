@@ -23,7 +23,7 @@
  * di Storage bucket `kota-foto`. Lihat supabase/migrations/ untuk skemanya.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { AnimatePresence, motion } from 'framer-motion'
 import PerjalananFoto from './PerjalananFoto'
@@ -62,6 +62,7 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
+  const petaRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -112,6 +113,25 @@ export default function PetaAnimasi() {
     return () => { document.body.style.overflow = '' }
   }, [terpilih])
 
+  // Ukuran .panggung dihitung dari vw/vh, tapi react-zoom-pan-pinch nyimpen
+  // batas pan/zoom-nya dari ukuran pas mount. Pas HP diputar (orientationchange),
+  // ukurannya berubah tapi batas lama itu nggak keupdate — bikin peta & titik
+  // kota keliatan "geser". Reset transform-nya biar dihitung ulang dari ukuran baru.
+  useEffect(() => {
+    let waktu
+    const onResize = () => {
+      clearTimeout(waktu)
+      waktu = setTimeout(() => petaRef.current?.resetTransform(0), 150)
+    }
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    return () => {
+      clearTimeout(waktu)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
+  }, [])
+
   return (
     <AnimatePresence mode="wait">
       {terpilih ? (
@@ -126,6 +146,7 @@ export default function PetaAnimasi() {
           transition={{ duration: 0.25 }}
         >
       <TransformWrapper
+        ref={petaRef}
         initialScale={1}
         minScale={1}
         maxScale={5}
