@@ -117,18 +117,26 @@ export default function PetaAnimasi() {
   // batas pan/zoom-nya dari ukuran pas mount. Pas HP diputar (orientationchange),
   // ukurannya berubah tapi batas lama itu nggak keupdate — bikin peta & titik
   // kota keliatan "geser". Reset transform-nya biar dihitung ulang dari ukuran baru.
+  // Dipanggil 2x (150ms & 500ms) karena di iOS Safari ukuran layar kadang
+  // belum settle pas event resize/orientationchange pertama kali nembak
+  // (masih ada animasi collapse/expand address bar).
   useEffect(() => {
-    let waktu
+    let timer1, timer2
     const onResize = () => {
-      clearTimeout(waktu)
-      waktu = setTimeout(() => petaRef.current?.resetTransform(0), 150)
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      timer1 = setTimeout(() => petaRef.current?.resetTransform(0), 150)
+      timer2 = setTimeout(() => petaRef.current?.resetTransform(0), 500)
     }
     window.addEventListener('resize', onResize)
     window.addEventListener('orientationchange', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
     return () => {
-      clearTimeout(waktu)
+      clearTimeout(timer1)
+      clearTimeout(timer2)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
     }
   }, [])
 
