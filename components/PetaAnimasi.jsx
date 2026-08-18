@@ -23,7 +23,7 @@
  * di Storage bucket `kota-foto`. Lihat supabase/migrations/ untuk skemanya.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { AnimatePresence, motion } from 'framer-motion'
 import PerjalananFoto from './PerjalananFoto'
@@ -62,7 +62,7 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
-  const petaRef = useRef(null)
+  const [orientasi, setOrientasi] = useState('portrait')
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -113,31 +113,17 @@ export default function PetaAnimasi() {
     return () => { document.body.style.overflow = '' }
   }, [terpilih])
 
-  // Ukuran .panggung dihitung dari vw/vh, tapi react-zoom-pan-pinch nyimpen
-  // batas pan/zoom-nya dari ukuran pas mount. Pas HP diputar (orientationchange),
-  // ukurannya berubah tapi batas lama itu nggak keupdate — bikin peta & titik
-  // kota keliatan "geser". Reset transform-nya biar dihitung ulang dari ukuran baru.
-  // Dipanggil 2x (150ms & 500ms) karena di iOS Safari ukuran layar kadang
-  // belum settle pas event resize/orientationchange pertama kali nembak
-  // (masih ada animasi collapse/expand address bar).
+  // react-zoom-pan-pinch nyimpen batas pan/zoom-nya dari ukuran pas mount, dan
+  // resetTransform() aja ternyata nggak cukup buat bikin dia ngitung ulang
+  // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusi
+  // paling pasti: paksa remount total komponen peta pas orientasi berubah,
+  // lewat `key` di bawah — bukan cuma reset transform-nya doang.
   useEffect(() => {
-    let timer1, timer2
-    const onResize = () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-      timer1 = setTimeout(() => petaRef.current?.resetTransform(0), 150)
-      timer2 = setTimeout(() => petaRef.current?.resetTransform(0), 500)
-    }
-    window.addEventListener('resize', onResize)
-    window.addEventListener('orientationchange', onResize)
-    window.visualViewport?.addEventListener('resize', onResize)
-    return () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-      window.removeEventListener('resize', onResize)
-      window.removeEventListener('orientationchange', onResize)
-      window.visualViewport?.removeEventListener('resize', onResize)
-    }
+    const mq = window.matchMedia('(orientation: landscape)')
+    const set = () => setOrientasi(mq.matches ? 'landscape' : 'portrait')
+    set()
+    mq.addEventListener('change', set)
+    return () => mq.removeEventListener('change', set)
   }, [])
 
   return (
@@ -154,7 +140,7 @@ export default function PetaAnimasi() {
           transition={{ duration: 0.25 }}
         >
       <TransformWrapper
-        ref={petaRef}
+        key={orientasi}
         initialScale={1}
         minScale={1}
         maxScale={5}
