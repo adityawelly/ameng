@@ -63,6 +63,7 @@ export default function PetaAnimasi() {
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
   const [orientasi, setOrientasi] = useState('portrait')
+  const [ukuran, setUkuran] = useState({ w: 0, h: 0 })
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -126,6 +127,18 @@ export default function PetaAnimasi() {
     return () => mq.removeEventListener('change', set)
   }, [])
 
+  // DEBUG sementara — nunjukin angka mentah ukuran layar biar bisa dicek.
+  useEffect(() => {
+    const set = () => setUkuran({ w: window.innerWidth, h: window.innerHeight })
+    set()
+    window.addEventListener('resize', set)
+    window.addEventListener('orientationchange', set)
+    return () => {
+      window.removeEventListener('resize', set)
+      window.removeEventListener('orientationchange', set)
+    }
+  }, [])
+
   return (
     <AnimatePresence mode="wait">
       {terpilih ? (
@@ -139,6 +152,9 @@ export default function PetaAnimasi() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
+      <div className="debug-info">
+        {ukuran.w}x{ukuran.h} | {orientasi} | skala={skala.toFixed(3)}
+      </div>
       <TransformWrapper
         key={orientasi}
         initialScale={1}
@@ -276,6 +292,21 @@ export default function PetaAnimasi() {
 		  width: calc(var(--tinggi-dasar) * 1.83333);
 		  height: var(--tinggi-dasar);
 		  transform: translateY(-15vh);
+		  outline: 5px solid lime;
+		  outline-offset: -5px;
+		}
+		.debug-info {
+		  position: fixed;
+		  top: 8px;
+		  left: 8px;
+		  z-index: 999;
+		  background: rgba(255, 0, 0, 0.85);
+		  color: #fff;
+		  font-size: 13px;
+		  font-family: monospace;
+		  padding: 4px 8px;
+		  border-radius: 4px;
+		  pointer-events: none;
 		}
 		.gambar {
 		  display: block;
