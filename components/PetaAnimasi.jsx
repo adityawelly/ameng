@@ -62,8 +62,9 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
-  const [orientasi, setOrientasi] = useState('portrait')
-  const [ukuran, setUkuran] = useState({ w: 0, h: 0 })
+  // Diukur langsung dari window, bukan CSS vw/vh — biar ukuran .panggung dan
+  // trigger remount-nya (key di bawah) selalu konsisten dalam render yang sama.
+  const [ukuran, setUkuran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -116,21 +117,12 @@ export default function PetaAnimasi() {
 
   // react-zoom-pan-pinch nyimpen batas pan/zoom-nya dari ukuran pas mount, dan
   // resetTransform() aja ternyata nggak cukup buat bikin dia ngitung ulang
-  // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusi
-  // paling pasti: paksa remount total komponen peta pas orientasi berubah,
-  // lewat `key` di bawah — bukan cuma reset transform-nya doang.
-  useEffect(() => {
-    const mq = window.matchMedia('(orientation: landscape)')
-    const set = () => setOrientasi(mq.matches ? 'landscape' : 'portrait')
-    set()
-    mq.addEventListener('change', set)
-    return () => mq.removeEventListener('change', set)
-  }, [])
-
-  // DEBUG sementara — nunjukin angka mentah ukuran layar biar bisa dicek.
+  // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusinya:
+  // remount total (lewat `key={ukuran.w}x${ukuran.h}` di bawah) plus ukuran
+  // .panggung dihitung dari window langsung (bukan vw/vh) biar keduanya selalu
+  // sinkron, nggak ada celah waktu antara CSS lama vs JS baru pas rotasi.
   useEffect(() => {
     const set = () => setUkuran({ w: window.innerWidth, h: window.innerHeight })
-    set()
     window.addEventListener('resize', set)
     window.addEventListener('orientationchange', set)
     return () => {
@@ -138,6 +130,12 @@ export default function PetaAnimasi() {
       window.removeEventListener('orientationchange', set)
     }
   }, [])
+
+  // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
+  // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
+  const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455)
+  const lebarPanggung = tinggiDasar * 1.83333
+  const geserY = ukuran.h * 0.15
 
   return (
     <AnimatePresence mode="wait">
@@ -152,11 +150,8 @@ export default function PetaAnimasi() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
-      <div className="debug-info">
-        {ukuran.w}x{ukuran.h} | {orientasi} | skala={skala.toFixed(3)}
-      </div>
       <TransformWrapper
-        key={orientasi}
+        key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
         minScale={1}
         maxScale={5}
@@ -170,7 +165,14 @@ export default function PetaAnimasi() {
 			<TransformComponent
 			  wrapperStyle={{ width: '100%', height: '100%' }}
 			>
-              <div className="panggung">
+              <div
+                className="panggung"
+                style={{
+                  width: `${lebarPanggung}px`,
+                  height: `${tinggiDasar}px`,
+                  transform: `translateY(-${geserY}px)`,
+                }}
+              >
                 {/* 1. peta dasar */}
                 <img src={PETA} alt="Peta ilustrasi Indonesia" draggable={false} className="gambar" />
 
@@ -286,27 +288,8 @@ export default function PetaAnimasi() {
 		  touch-action: none;
 		}
 		.panggung {
-		  --tinggi-dasar: max(115vh, calc(100vw * 0.545455));
 		  position: relative;
 		  flex-shrink: 0;
-		  width: calc(var(--tinggi-dasar) * 1.83333);
-		  height: var(--tinggi-dasar);
-		  transform: translateY(-15vh);
-		  outline: 5px solid lime;
-		  outline-offset: -5px;
-		}
-		.debug-info {
-		  position: fixed;
-		  top: 8px;
-		  left: 8px;
-		  z-index: 999;
-		  background: rgba(255, 0, 0, 0.85);
-		  color: #fff;
-		  font-size: 13px;
-		  font-family: monospace;
-		  padding: 4px 8px;
-		  border-radius: 4px;
-		  pointer-events: none;
 		}
 		.gambar {
 		  display: block;
