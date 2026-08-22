@@ -133,7 +133,16 @@ export default function PetaAnimasi() {
 
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
-  const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455)
+  //
+  // Cabang lebar (w * 0.545455) sengaja dikasih buffer +4% ekstra. Tanpa itu,
+  // pas landscape cabang ini yang menang dan lebarPanggung jadi PERSIS sama
+  // dengan lebar layar (nol slack) — beda tipis sekalipun (rounding subpixel,
+  // safe-area, window.innerWidth yang sempat kebaca beda pas rotasi) bikin
+  // react-zoom-pan-pinch nganggep konten "fits" terus nge-clamp posisinya ke
+  // salah satu tepi alih-alih center, jadi peta & titik kota geser ke kanan.
+  // Cabang tinggi (h * 1.15) nggak butuh buffer serupa karena portrait selalu
+  // punya slack lebar yang gede banget dari sononya.
+  const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455 * 1.04)
   const lebarPanggung = tinggiDasar * 1.83333
   const geserY = ukuran.h * 0.15
 
