@@ -65,6 +65,9 @@ export default function PetaAnimasi() {
   // Diukur langsung dari window, bukan CSS vw/vh — biar ukuran .panggung dan
   // trigger remount-nya (key di bawah) selalu konsisten dalam render yang sama.
   const [ukuran, setUkuran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  // DEBUG sementara — buat diagnosa bug pin geser pas landscape. Hapus lagi
+  // kalau udah ketemu akar masalahnya.
+  const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -133,16 +136,7 @@ export default function PetaAnimasi() {
 
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
-  //
-  // Cabang lebar (w * 0.545455) sengaja dikasih buffer +4% ekstra. Tanpa itu,
-  // pas landscape cabang ini yang menang dan lebarPanggung jadi PERSIS sama
-  // dengan lebar layar (nol slack) — beda tipis sekalipun (rounding subpixel,
-  // safe-area, window.innerWidth yang sempat kebaca beda pas rotasi) bikin
-  // react-zoom-pan-pinch nganggep konten "fits" terus nge-clamp posisinya ke
-  // salah satu tepi alih-alih center, jadi peta & titik kota geser ke kanan.
-  // Cabang tinggi (h * 1.15) nggak butuh buffer serupa karena portrait selalu
-  // punya slack lebar yang gede banget dari sononya.
-  const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455 * 1.04)
+  const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455)
   const lebarPanggung = tinggiDasar * 1.83333
   const geserY = ukuran.h * 0.15
 
@@ -159,6 +153,11 @@ export default function PetaAnimasi() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
+      <div className="debug-info">
+        window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
+        panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
+        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}
+      </div>
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
@@ -168,7 +167,10 @@ export default function PetaAnimasi() {
         limitToBounds
         doubleClick={{ mode: 'zoomIn', step: 0.7 }}
         wheel={{ step: 0.02 }}
-        onTransformed={(_, state) => setSkala(state.scale)}
+        onTransformed={(_, state) => {
+          setSkala(state.scale)
+          setDebugTransform({ x: state.positionX, y: state.positionY, scale: state.scale })
+        }}
       >
         {() => (
 			<TransformComponent
@@ -180,6 +182,8 @@ export default function PetaAnimasi() {
                   width: `${lebarPanggung}px`,
                   height: `${tinggiDasar}px`,
                   transform: `translateY(-${geserY}px)`,
+                  outline: '4px solid lime',
+                  outlineOffset: '-4px',
                 }}
               >
                 {/* 1. peta dasar */}
@@ -299,6 +303,20 @@ export default function PetaAnimasi() {
 		.panggung {
 		  position: relative;
 		  flex-shrink: 0;
+		}
+		.debug-info {
+		  position: fixed;
+		  top: 8px;
+		  left: 8px;
+		  z-index: 999;
+		  background: rgba(255, 0, 0, 0.85);
+		  color: #fff;
+		  font-size: 12px;
+		  line-height: 1.5;
+		  font-family: monospace;
+		  padding: 6px 9px;
+		  border-radius: 4px;
+		  pointer-events: none;
 		}
 		.gambar {
 		  display: block;
