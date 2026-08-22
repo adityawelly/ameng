@@ -62,16 +62,17 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
-  // Diukur dari .wadah SUNGGUHAN (getBoundingClientRect), bukan
-  // window.innerWidth/innerHeight — di browser mobile, ukuran window.innerHeight
-  // bisa beda dari ukuran yang beneran dipakai buat render position:fixed
-  // (soal address bar yang collapse/expand, sama alasannya kenapa CSS punya
-  // unit dvh/svh/lvh). Jadi .panggung & TransformWrapper harus ngikutin ukuran
-  // .wadah yang asli, bukan angka window yang bisa nggak sinkron.
-  const [ukuran, setUkuran] = useState({ w: 0, h: 0 })
+  // PENTING: jangan ukur dari .wadah sendiri buat nentuin ukuran .panggung —
+  // ternyata .wadah nggak beneran position:fixed (entah kenapa, lagi diselidiki),
+  // jadi ukurannya ngikutin ukuran .panggung. Kalau ukuran .panggung dihitung
+  // dari hasil ukur .wadah, itu muter balik (feedback loop) dan angkanya
+  // meledak nggak kekontrol. Makanya balik pakai window.innerWidth/innerHeight
+  // dulu (independen dari .wadah) sambil dicari kenapa .wadah nggak fixed.
+  const [ukuran, setUkuran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
   // DEBUG sementara — buat diagnosa bug pin geser pas landscape. Hapus lagi
   // kalau udah ketemu akar masalahnya.
   const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
+  const [debugWadah, setDebugWadah] = useState({ w: 0, h: 0, position: '?' })
   const wadahRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
@@ -126,22 +127,33 @@ export default function PetaAnimasi() {
   // react-zoom-pan-pinch nyimpen batas pan/zoom-nya dari ukuran pas mount, dan
   // resetTransform() aja ternyata nggak cukup buat bikin dia ngitung ulang
   // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusinya:
-  // remount total (lewat `key={ukuran.w}x${ukuran.h}` di bawah), plus ukuran
-  // .panggung diukur dari .wadah SUNGGUHAN lewat ResizeObserver (bukan
-  // window.innerWidth/innerHeight, yang kebukti nggak sinkron sama ukuran
-  // render position:fixed di browser mobile pas landscape).
+  // remount total lewat `key={ukuran.w}x${ukuran.h}` di bawah.
+  useEffect(() => {
+    const set = () => setUkuran({ w: window.innerWidth, h: window.innerHeight })
+    window.addEventListener('resize', set)
+    window.addEventListener('orientationchange', set)
+    return () => {
+      window.removeEventListener('resize', set)
+      window.removeEventListener('orientationchange', set)
+    }
+  }, [])
+
+  // DEBUG sementara — ukur .wadah SUNGGUHAN + computed style `position`-nya.
+  // CUMA buat ditampilkan, sengaja TIDAK dipakai buat ngitung apa-apa (kalau
+  // dipakai, bisa muter balik/feedback-loop kalau .wadah nggak beneran fixed).
   useEffect(() => {
     const el = wadahRef.current
     if (!el) return
     const set = () => {
       const r = el.getBoundingClientRect()
-      setUkuran({ w: r.width, h: r.height })
+      const cs = window.getComputedStyle(el)
+      setDebugWadah({ w: r.width, h: r.height, position: cs.position })
     }
     set()
     const ro = new ResizeObserver(set)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [ukuran])
 
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
@@ -164,9 +176,10 @@ export default function PetaAnimasi() {
           transition={{ duration: 0.25 }}
         >
       <div className="debug-info">
-        wadah: {ukuran.w.toFixed(0)}x{ukuran.h.toFixed(0)} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
+        window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
         panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
-        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}
+        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}<br />
+        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)} position={debugWadah.position}
       </div>
       {ukuran.w > 0 && (
       <TransformWrapper
