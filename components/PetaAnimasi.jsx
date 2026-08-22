@@ -23,7 +23,7 @@
  * di Storage bucket `kota-foto`. Lihat supabase/migrations/ untuk skemanya.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { AnimatePresence, motion } from 'framer-motion'
 import PerjalananFoto from './PerjalananFoto'
@@ -62,18 +62,9 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
-  // PENTING: jangan ukur dari .wadah sendiri buat nentuin ukuran .panggung —
-  // ternyata .wadah nggak beneran position:fixed (entah kenapa, lagi diselidiki),
-  // jadi ukurannya ngikutin ukuran .panggung. Kalau ukuran .panggung dihitung
-  // dari hasil ukur .wadah, itu muter balik (feedback loop) dan angkanya
-  // meledak nggak kekontrol. Makanya balik pakai window.innerWidth/innerHeight
-  // dulu (independen dari .wadah) sambil dicari kenapa .wadah nggak fixed.
+  // Diukur langsung dari window, bukan CSS vw/vh — biar ukuran .panggung dan
+  // trigger remount-nya (key di bawah) selalu konsisten dalam render yang sama.
   const [ukuran, setUkuran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
-  // DEBUG sementara — buat diagnosa bug pin geser pas landscape. Hapus lagi
-  // kalau udah ketemu akar masalahnya.
-  const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
-  const [debugWadah, setDebugWadah] = useState({ w: 0, h: 0, position: '?' })
-  const wadahRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -127,7 +118,9 @@ export default function PetaAnimasi() {
   // react-zoom-pan-pinch nyimpen batas pan/zoom-nya dari ukuran pas mount, dan
   // resetTransform() aja ternyata nggak cukup buat bikin dia ngitung ulang
   // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusinya:
-  // remount total lewat `key={ukuran.w}x${ukuran.h}` di bawah.
+  // remount total (lewat `key={ukuran.w}x${ukuran.h}` di bawah) plus ukuran
+  // .panggung dihitung dari window langsung (bukan vw/vh) biar keduanya selalu
+  // sinkron, nggak ada celah waktu antara CSS lama vs JS baru pas rotasi.
   useEffect(() => {
     const set = () => setUkuran({ w: window.innerWidth, h: window.innerHeight })
     window.addEventListener('resize', set)
@@ -137,23 +130,6 @@ export default function PetaAnimasi() {
       window.removeEventListener('orientationchange', set)
     }
   }, [])
-
-  // DEBUG sementara — ukur .wadah SUNGGUHAN + computed style `position`-nya.
-  // CUMA buat ditampilkan, sengaja TIDAK dipakai buat ngitung apa-apa (kalau
-  // dipakai, bisa muter balik/feedback-loop kalau .wadah nggak beneran fixed).
-  useEffect(() => {
-    const el = wadahRef.current
-    if (!el) return
-    const set = () => {
-      const r = el.getBoundingClientRect()
-      const cs = window.getComputedStyle(el)
-      setDebugWadah({ w: r.width, h: r.height, position: cs.position })
-    }
-    set()
-    const ro = new ResizeObserver(set)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [ukuran])
 
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
@@ -168,33 +144,21 @@ export default function PetaAnimasi() {
       ) : (
         <motion.div
           key="peta"
-          ref={wadahRef}
           className="wadah"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
-      <div className="debug-info">
-        window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
-        panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
-        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}<br />
-        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)} position={debugWadah.position}
-      </div>
-      {ukuran.w > 0 && (
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
-        initialPositionX={(ukuran.w - lebarPanggung) / 2}
-        initialPositionY={0}
         minScale={1}
         maxScale={5}
+        centerOnInit
         limitToBounds
         doubleClick={{ mode: 'zoomIn', step: 0.7 }}
         wheel={{ step: 0.02 }}
-        onInit={(ctx) => {
-          setDebugTransform({ x: ctx.state.positionX, y: ctx.state.positionY, scale: ctx.state.scale })
-        }}
         onTransformed={(_, state) => setSkala(state.scale)}
       >
         {() => (
@@ -207,8 +171,6 @@ export default function PetaAnimasi() {
                   width: `${lebarPanggung}px`,
                   height: `${tinggiDasar}px`,
                   transform: `translateY(-${geserY}px)`,
-                  outline: '4px solid lime',
-                  outlineOffset: '-4px',
                 }}
               >
                 {/* 1. peta dasar */}
@@ -315,7 +277,6 @@ export default function PetaAnimasi() {
             </TransformComponent>
         )}
       </TransformWrapper>
-      )}
 
       <style jsx>{`
 		.wadah {
@@ -332,20 +293,6 @@ export default function PetaAnimasi() {
 		.panggung {
 		  position: relative;
 		  flex-shrink: 0;
-		}
-		.debug-info {
-		  position: fixed;
-		  top: 8px;
-		  left: 8px;
-		  z-index: 999;
-		  background: rgba(255, 0, 0, 0.85);
-		  color: #fff;
-		  font-size: 12px;
-		  line-height: 1.5;
-		  font-family: monospace;
-		  padding: 6px 9px;
-		  border-radius: 4px;
-		  pointer-events: none;
 		}
 		.gambar {
 		  display: block;
