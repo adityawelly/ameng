@@ -161,9 +161,10 @@ export default function PetaAnimasi() {
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
+        initialPositionX={(ukuran.w - lebarPanggung) / 2}
+        initialPositionY={(ukuran.h - tinggiDasar) / 2}
         minScale={1}
         maxScale={5}
-        centerOnInit
         limitToBounds
         doubleClick={{ mode: 'zoomIn', step: 0.7 }}
         wheel={{ step: 0.02 }}
