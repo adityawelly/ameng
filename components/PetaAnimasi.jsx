@@ -62,14 +62,16 @@ export default function PetaAnimasi() {
   const [skala, setSkala] = useState(1)
   const [hematGerak, setHematGerak] = useState(false)
   const [kota, setKota] = useState([])
-  // Diukur langsung dari window, bukan CSS vw/vh — biar ukuran .panggung dan
-  // trigger remount-nya (key di bawah) selalu konsisten dalam render yang sama.
-  const [ukuran, setUkuran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  // Diukur dari .wadah SUNGGUHAN (getBoundingClientRect), bukan
+  // window.innerWidth/innerHeight — di browser mobile, ukuran window.innerHeight
+  // bisa beda dari ukuran yang beneran dipakai buat render position:fixed
+  // (soal address bar yang collapse/expand, sama alasannya kenapa CSS punya
+  // unit dvh/svh/lvh). Jadi .panggung & TransformWrapper harus ngikutin ukuran
+  // .wadah yang asli, bukan angka window yang bisa nggak sinkron.
+  const [ukuran, setUkuran] = useState({ w: 0, h: 0 })
   // DEBUG sementara — buat diagnosa bug pin geser pas landscape. Hapus lagi
   // kalau udah ketemu akar masalahnya.
   const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
-  const [debugWadah, setDebugWadah] = useState({ w: 0, h: 0 })
-  const [debugLeluhur, setDebugLeluhur] = useState('cek...')
   const wadahRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
@@ -124,59 +126,21 @@ export default function PetaAnimasi() {
   // react-zoom-pan-pinch nyimpen batas pan/zoom-nya dari ukuran pas mount, dan
   // resetTransform() aja ternyata nggak cukup buat bikin dia ngitung ulang
   // dengan bersih pas HP diputar — titik kota jadi keliatan geser. Solusinya:
-  // remount total (lewat `key={ukuran.w}x${ukuran.h}` di bawah) plus ukuran
-  // .panggung dihitung dari window langsung (bukan vw/vh) biar keduanya selalu
-  // sinkron, nggak ada celah waktu antara CSS lama vs JS baru pas rotasi.
-  useEffect(() => {
-    const set = () => setUkuran({ w: window.innerWidth, h: window.innerHeight })
-    window.addEventListener('resize', set)
-    window.addEventListener('orientationchange', set)
-    return () => {
-      window.removeEventListener('resize', set)
-      window.removeEventListener('orientationchange', set)
-    }
-  }, [])
-
-  // DEBUG sementara — ukuran ASLI .wadah yang dirender browser, buat
-  // dibandingin sama window.innerWidth/Height (ukuran) di atas. Kalau beda,
-  // berarti .wadah nggak benar-benar sama besar dengan window pas landscape.
+  // remount total (lewat `key={ukuran.w}x${ukuran.h}` di bawah), plus ukuran
+  // .panggung diukur dari .wadah SUNGGUHAN lewat ResizeObserver (bukan
+  // window.innerWidth/innerHeight, yang kebukti nggak sinkron sama ukuran
+  // render position:fixed di browser mobile pas landscape).
   useEffect(() => {
     const el = wadahRef.current
     if (!el) return
     const set = () => {
       const r = el.getBoundingClientRect()
-      setDebugWadah({ w: r.width, h: r.height })
+      setUkuran({ w: r.width, h: r.height })
     }
     set()
     const ro = new ResizeObserver(set)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [ukuran])
-
-  // DEBUG sementara — jalan dari .wadah ke atas (parentElement demi
-  // parentElement) sampai <html>, nyari leluhur yang punya transform/filter/
-  // perspective/contain aktif. Elemen kayak gitu bikin position:fixed di
-  // .wadah berhenti nempel ke layar sungguhan, malah nempel ke elemen itu.
-  useEffect(() => {
-    const el = wadahRef.current
-    if (!el) return
-    let node = el.parentElement
-    const temuan = []
-    while (node) {
-      const cs = window.getComputedStyle(node)
-      const mencurigakan =
-        (cs.transform && cs.transform !== 'none') ||
-        (cs.filter && cs.filter !== 'none') ||
-        (cs.perspective && cs.perspective !== 'none') ||
-        (cs.contain && cs.contain !== 'none' && cs.contain !== 'style') ||
-        (cs.willChange && cs.willChange.includes('transform')) ||
-        (cs.backdropFilter && cs.backdropFilter !== 'none')
-      if (mencurigakan) {
-        temuan.push(`${node.tagName.toLowerCase()}${node.className ? '.' + String(node.className).split(' ')[0] : ''}`)
-      }
-      node = node.parentElement
-    }
-    setDebugLeluhur(temuan.length ? temuan.join(', ') : 'bersih (nggak ada)')
   }, [])
 
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
@@ -200,12 +164,11 @@ export default function PetaAnimasi() {
           transition={{ duration: 0.25 }}
         >
       <div className="debug-info">
-        window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
+        wadah: {ukuran.w.toFixed(0)}x{ukuran.h.toFixed(0)} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
         panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
-        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}<br />
-        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)}<br />
-        leluhur mencurigakan: {debugLeluhur}
+        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}
       </div>
+      {ukuran.w > 0 && (
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
@@ -339,6 +302,7 @@ export default function PetaAnimasi() {
             </TransformComponent>
         )}
       </TransformWrapper>
+      )}
 
       <style jsx>{`
 		.wadah {
