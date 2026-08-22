@@ -168,7 +168,10 @@ export default function PetaAnimasi() {
         limitToBounds
         doubleClick={{ mode: 'zoomIn', step: 0.7 }}
         wheel={{ step: 0.02 }}
-        onTransformed={(_, state) => {
+        onInit={(ctx) => {
+          setDebugTransform({ x: ctx.state.positionX, y: ctx.state.positionY, scale: ctx.state.scale })
+        }}
+        onTransform={(_, state) => {
           setSkala(state.scale)
           setDebugTransform({ x: state.positionX, y: state.positionY, scale: state.scale })
         }}
