@@ -315,7 +315,10 @@ export default function PetaAnimasi() {
       <style jsx>{`
 		.wadah {
 		  position: fixed;
-		  inset: 0;
+		  top: 0;
+		  right: 0;
+		  bottom: 0;
+		  left: 0;
 		  overflow: hidden;
 		  border-radius: 0;
 		  background: #0a3d62;
