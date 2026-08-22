@@ -69,6 +69,7 @@ export default function PetaAnimasi() {
   // kalau udah ketemu akar masalahnya.
   const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
   const [debugWadah, setDebugWadah] = useState({ w: 0, h: 0 })
+  const [debugLeluhur, setDebugLeluhur] = useState('cek...')
   const wadahRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
@@ -152,6 +153,32 @@ export default function PetaAnimasi() {
     return () => ro.disconnect()
   }, [ukuran])
 
+  // DEBUG sementara — jalan dari .wadah ke atas (parentElement demi
+  // parentElement) sampai <html>, nyari leluhur yang punya transform/filter/
+  // perspective/contain aktif. Elemen kayak gitu bikin position:fixed di
+  // .wadah berhenti nempel ke layar sungguhan, malah nempel ke elemen itu.
+  useEffect(() => {
+    const el = wadahRef.current
+    if (!el) return
+    let node = el.parentElement
+    const temuan = []
+    while (node) {
+      const cs = window.getComputedStyle(node)
+      const mencurigakan =
+        (cs.transform && cs.transform !== 'none') ||
+        (cs.filter && cs.filter !== 'none') ||
+        (cs.perspective && cs.perspective !== 'none') ||
+        (cs.contain && cs.contain !== 'none' && cs.contain !== 'style') ||
+        (cs.willChange && cs.willChange.includes('transform')) ||
+        (cs.backdropFilter && cs.backdropFilter !== 'none')
+      if (mencurigakan) {
+        temuan.push(`${node.tagName.toLowerCase()}${node.className ? '.' + String(node.className).split(' ')[0] : ''}`)
+      }
+      node = node.parentElement
+    }
+    setDebugLeluhur(temuan.length ? temuan.join(', ') : 'bersih (nggak ada)')
+  }, [])
+
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
   const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455)
@@ -176,7 +203,8 @@ export default function PetaAnimasi() {
         window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
         panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
         transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}<br />
-        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)}
+        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)}<br />
+        leluhur mencurigakan: {debugLeluhur}
       </div>
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
