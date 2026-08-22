@@ -23,7 +23,7 @@
  * di Storage bucket `kota-foto`. Lihat supabase/migrations/ untuk skemanya.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { AnimatePresence, motion } from 'framer-motion'
 import PerjalananFoto from './PerjalananFoto'
@@ -68,6 +68,8 @@ export default function PetaAnimasi() {
   // DEBUG sementara — buat diagnosa bug pin geser pas landscape. Hapus lagi
   // kalau udah ketemu akar masalahnya.
   const [debugTransform, setDebugTransform] = useState({ x: 0, y: 0, scale: 1 })
+  const [debugWadah, setDebugWadah] = useState({ w: 0, h: 0 })
+  const wadahRef = useRef(null)
 
   const tutup = useCallback(() => setTerpilih(null), [])
 
@@ -134,6 +136,22 @@ export default function PetaAnimasi() {
     }
   }, [])
 
+  // DEBUG sementara — ukuran ASLI .wadah yang dirender browser, buat
+  // dibandingin sama window.innerWidth/Height (ukuran) di atas. Kalau beda,
+  // berarti .wadah nggak benar-benar sama besar dengan window pas landscape.
+  useEffect(() => {
+    const el = wadahRef.current
+    if (!el) return
+    const set = () => {
+      const r = el.getBoundingClientRect()
+      setDebugWadah({ w: r.width, h: r.height })
+    }
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ukuran])
+
   // Ukuran .panggung: selalu nutupin viewport penuh (kaya background-size:cover),
   // plus sisa 15% tinggi buat digeser ke atas (lihat geserY) tanpa nyisain celah.
   const tinggiDasar = Math.max(ukuran.h * 1.15, ukuran.w * 0.545455)
@@ -147,6 +165,7 @@ export default function PetaAnimasi() {
       ) : (
         <motion.div
           key="peta"
+          ref={wadahRef}
           className="wadah"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -156,7 +175,8 @@ export default function PetaAnimasi() {
       <div className="debug-info">
         window: {ukuran.w}x{ukuran.h} ({ukuran.w > ukuran.h ? 'landscape' : 'portrait'})<br />
         panggung: {lebarPanggung.toFixed(0)}x{tinggiDasar.toFixed(0)} geserY={geserY.toFixed(0)}<br />
-        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}
+        transform: x={debugTransform.x.toFixed(1)} y={debugTransform.y.toFixed(1)} scale={debugTransform.scale.toFixed(3)}<br />
+        wadah asli: {debugWadah.w.toFixed(0)}x{debugWadah.h.toFixed(0)}
       </div>
       <TransformWrapper
         key={`${ukuran.w}x${ukuran.h}`}
