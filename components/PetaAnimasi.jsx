@@ -162,7 +162,7 @@ export default function PetaAnimasi() {
         key={`${ukuran.w}x${ukuran.h}`}
         initialScale={1}
         initialPositionX={(ukuran.w - lebarPanggung) / 2}
-        initialPositionY={(ukuran.h - tinggiDasar) / 2}
+        initialPositionY={0}
         minScale={1}
         maxScale={5}
         limitToBounds
