@@ -171,10 +171,7 @@ export default function PetaAnimasi() {
         onInit={(ctx) => {
           setDebugTransform({ x: ctx.state.positionX, y: ctx.state.positionY, scale: ctx.state.scale })
         }}
-        onTransform={(_, state) => {
-          setSkala(state.scale)
-          setDebugTransform({ x: state.positionX, y: state.positionY, scale: state.scale })
-        }}
+        onTransformed={(_, state) => setSkala(state.scale)}
       >
         {() => (
 			<TransformComponent
